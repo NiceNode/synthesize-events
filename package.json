@@ -1,7 +1,7 @@
 {
-  "name": "transfer-events",
+  "name": "synthesize-events",
   "version": "1.0.0",
-  "description": "transfers events from mixpanel to longterm storage",
+  "description": "synthesize events to calculate metrics and index metadata",
   "main": "index.js",
   "scripts": {
     "build": "tsc",
@@ -12,14 +12,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/NiceNode/transfer-events.git"
+    "url": "git+ssh://git@github.com/NiceNode/synthesize-events.git"
   },
   "author": "jgresham",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/NiceNode/transfer-events/issues"
+    "url": "https://github.com/NiceNode/synthesize-events/issues"
   },
-  "homepage": "https://github.com/NiceNode/transfer-events#readme",
+  "homepage": "https://github.com/NiceNode/synthesize-events#readme",
   "dependencies": {
     "@upstash/redis": "^1.28.2",
     "date-fns": "^3.3.1",
