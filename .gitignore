@@ -1,0 +1,6 @@
+.env
+.DS_Store
+node_modules
+data-*.csv
+data.csv
+dist
