@@ -1,10 +1,18 @@
-import { Redis } from '@upstash/redis'
+import { Redis, type ScanCommandOptions } from '@upstash/redis'
 import 'dotenv/config'
+
+export interface constructorArgs {
+  initRedisUrl?: string
+  initRedisToken?: string
+}
 
 class RedisClient {
   private readonly client: Redis
 
-  constructor() {
+  constructor({
+    initRedisUrl,
+    initRedisToken,
+  }: constructorArgs) {
     // Replace these with your Upstash Redis connection details
     if (
       process.env.UPSTASH_REDIS_REST_URL === undefined ||
@@ -17,8 +25,8 @@ class RedisClient {
     // } else {
     //   console.log(process.env.UPSTASH_REDIS_REST_URL + " : " + process.env.UPSTASH_REDIS_REST_TOKEN);
     // }
-    const redisUrl: string = process.env.UPSTASH_REDIS_REST_URL
-    const redisPassword: string = process.env.UPSTASH_REDIS_REST_TOKEN
+    const redisUrl: string = initRedisUrl ?? process.env.UPSTASH_REDIS_REST_URL
+    const redisPassword: string = initRedisToken ?? process.env.UPSTASH_REDIS_REST_TOKEN
 
     this.client = new Redis({
       url: redisUrl,
@@ -64,6 +72,21 @@ class RedisClient {
     try {
       return await this.client.sadd(key, ...values)
     } catch (error) {
+      console.error(`Error setting key ${key}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * create or add to a set the values
+   * @param key
+   * @param values new values to add to the set
+   * @returns number of values newly added to the set
+   */
+  async sscan(key: string, cursor: number, opts?: ScanCommandOptions | undefined): Promise<[number, Array<string | number>]> {
+    try {
+      return await this.client.sscan(key, cursor, opts)
+    } catch (error: any) {
       console.error(`Error setting key ${key}:`, error)
       throw error
     }
