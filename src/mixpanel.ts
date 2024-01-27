@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/consistent-type-definitions */
 /* eslint-disable @typescript-eslint/indent */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/naming-convention */
@@ -12,7 +13,8 @@ export interface NiceNodeContext {
 /**
  * Mixpanel docs https://docs.mixpanel.com/docs/data-structure/property-reference#event-properties-1
  */
-export interface MixpanelEvent {
+export type MixpanelEvent = {
+  [key: string]: any
   event:
     | 'OpenApp'
     | 'AddNodePackage'
@@ -50,5 +52,26 @@ export interface MixpanelEvent {
     context?: NiceNodeContext
     eventData?: any
     [key: string]: any
+  }
+}
+
+export type DailyUserReport = MixpanelEvent & {
+  // [key: string]: unknown
+  properties: {
+    // [key: string]: unknown
+    eventData: Record<string, {
+      specId: string
+      specVersion: string
+      status: string
+      diskUsedGBs?: number
+      network?: string
+      nodes: Record<string, {
+        specId: string
+        specVersion: string
+        status: string
+        diskUsedGBs?: number
+        network?: string
+      }>
+    }>
   }
 }
