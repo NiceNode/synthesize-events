@@ -82,4 +82,24 @@ class RedisClient {
   }
 }
 
+let eventsRedisUrl = process.env.DEV_EVENTS_REDIS_REST_URL
+let eventsRedisToken = process.env.DEV_EVENTS_REDIS_REST_TOKEN
+let impactDashRedisUrl = process.env.DEV_IMPACT_DASH_REDIS_REST_URL
+let impactDashRedisToken = process.env.DEV_IMPACT_DASH_REDIS_REST_TOKEN
+if (process.env.NN_ENV === 'production') {
+  eventsRedisUrl = process.env.EVENTS_REDIS_REST_URL
+  eventsRedisToken = process.env.EVENTS_REDIS_REST_TOKEN
+  impactDashRedisUrl = process.env.IMPACT_DASH_REDIS_REST_URL
+  impactDashRedisToken = process.env.IMPACT_DASH_REDIS_REST_TOKEN
+}
+
+export const eventsRedisClient = new RedisClient({
+  initRedisUrl: eventsRedisUrl,
+  initRedisToken: eventsRedisToken,
+})
+export const impactDashRedisClient = new RedisClient({
+  initRedisUrl: impactDashRedisUrl,
+  initRedisToken: impactDashRedisToken,
+})
+
 export default RedisClient

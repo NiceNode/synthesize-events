@@ -4,10 +4,16 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 export interface NiceNodeContext {
   arch: string
-  freeMemory: number
   niceNodeVersion: string
   platform: 'win32' | 'macOS' | 'linux'
   platformRelease: string
+  /**
+   * In bytes
+   */
+    freeMemory: number
+  /**
+   * In bytes
+   */
   totalMemory: number
 }
 /**
@@ -49,7 +55,7 @@ export type MixpanelEvent = {
      * same as distinct_id, distinct user id set by NN
      */
     $user_id: string
-    context?: NiceNodeContext
+    context: NiceNodeContext
     eventData?: any
     [key: string]: any
   }
@@ -65,12 +71,16 @@ export type DailyUserReport = MixpanelEvent & {
       status: string
       diskUsedGBs?: number
       network?: string
+      lastRunningTimestampMs?: number
+      lastStartedTimestampMs?: number
       nodes: Record<string, {
         specId: string
         specVersion: string
         status: string
         diskUsedGBs?: number
         network?: string
+        lastRunningTimestampMs?: number
+        lastStartedTimestampMs?: number
       }>
     }>
   }

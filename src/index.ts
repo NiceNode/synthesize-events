@@ -1,6 +1,7 @@
+import { nodePrefix, type NodeJson, type UserJson, NodeServiceJson, nodeServicePrefix } from './redisTypes'
 // import { processData } from './../mixpanel'
 import { type MixpanelEvent } from '../mixpanel'
-import RedisClient from './RedisClient'
+import RedisClient, { eventsRedisClient, impactDashRedisClient } from './RedisClient'
 import { type DailyUserReport } from './mixpanel'
 import { logDeepObj } from './util'
 // import { type MixpanelEvent } from './mixpanel'
@@ -8,25 +9,6 @@ import { logDeepObj } from './util'
 console.log('Hello from TypeScript and Node.js!')
 console.log(`My timezone is: ${process.env.TZ}`)
 
-let eventsRedisUrl = process.env.DEV_EVENTS_REDIS_REST_URL
-let eventsRedisToken = process.env.DEV_EVENTS_REDIS_REST_TOKEN
-let impactDashRedisUrl = process.env.DEV_IMPACT_DASH_REDIS_REST_URL
-let impactDashRedisToken = process.env.DEV_IMPACT_DASH_REDIS_REST_TOKEN
-if (process.env.NN_ENV === 'production') {
-  eventsRedisUrl = process.env.EVENTS_REDIS_REST_URL
-  eventsRedisToken = process.env.EVENTS_REDIS_REST_TOKEN
-  impactDashRedisUrl = process.env.IMPACT_DASH_REDIS_REST_URL
-  impactDashRedisToken = process.env.IMPACT_DASH_REDIS_REST_TOKEN
-}
-
-const eventsRedisClient = new RedisClient({
-  initRedisUrl: eventsRedisUrl,
-  initRedisToken: eventsRedisToken,
-})
-const impactDashRedisClient = new RedisClient({
-  initRedisUrl: impactDashRedisUrl,
-  initRedisToken: impactDashRedisToken,
-})
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 // const test = async () => {
@@ -77,7 +59,7 @@ const processEvent = async (eventId: string | number): Promise<void> => {
   // console.log('process eventId: ', eventIdStr)
 
   // Only processing Daily Reports for now
-  const eventRedisObj = await eventsRedisClient.client.get(eventIdStr)
+  const eventRedisObj = await eventsRedisClient.client.json.get(eventIdStr)
 
   if (eventRedisObj === null) {
     throw new Error(`eventId not found in redis: ${eventId}`)
@@ -89,11 +71,73 @@ const processEvent = async (eventId: string | number): Promise<void> => {
   if (event.event === 'DailyUserReport') {
     logDeepObj(event)
     const dailyEvent = event as DailyUserReport
-  }
+    const properties = dailyEvent.properties
+    const userId = properties.$user_id
+    const commonProperties = {
+      region: properties.$region,
+      city: properties.$city,
+      country: properties.mp_country_code,
+      userId,
+    }
+    const eventTime = properties.time
+
+    // Upsave each node of the user
+    for (const nodeId in properties.eventData) {
+      const node = properties.eventData[nodeId]
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      const serviceIds = Object.keys(node.nodes)
+      const nodeJson: NodeJson = {
+        nodeId,
+        specId: node.specId,
+        specVersion: node.specVersion,
+        serviceIds,
+        status: node.status,
+        lastReportedTimestamp: eventTime,
+        diskUsedGBs: node.diskUsedGBs,
+        network: node.network,
+        lastRunningTimestampMs: node.lastRunningTimestampMs,
+        lastStartedTimestampMs: node.lastStartedTimestampMs,
+        ...commonProperties
+      }
+      await impactDashRedisClient.client.json.set(`${nodePrefix}${nodeId}`, '$', nodeJson)
+      // Upsave each service of the node
+      for (const serviceId in node.nodes) {
+        const service = node.nodes[serviceId]
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+        const nodeServiceJson: NodeServiceJson = {
+          nodeId,
+          serviceId,
+          specId: service.specId,
+          specVersion: service.specVersion,
+          status: service.status,
+          lastReportedTimestamp: eventTime,
+          diskUsedGBs: service.diskUsedGBs,
+          network: service.network,
+          lastRunningTimestampMs: service.lastRunningTimestampMs,
+          lastStartedTimestampMs: service.lastStartedTimestampMs,
+          ...commonProperties,
+        }
+        await impactDashRedisClient.client.json.set(`${nodeServicePrefix}${serviceId}`, '$', nodeServiceJson)
+    }
+
+    // Upsave user
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const nodeIds = Object.keys(properties.eventData)
+    const userJson: UserJson = {
+      lastReportedTimestamp: eventTime,
+      ...commonProperties,
+      ...properties.context,
+      nodeIds,
+    }
+    await impactDashRedisClient.client.json.set(`${nodePrefix}${userId}`, '$', userJson)
+
+    // indexing for active node data
+
+  } // end for (const nodeId in properties.eventData)
 }
 // Main high-level algo
 // 1. Iterate new (daily) events
-// 2. Save/update node data from the new events
+// 2. Save/update node, service, and user data from the new events
 // 3. Iterate all the nodes and calc active node metadata
 // void processData(transferAnEvent)
 
