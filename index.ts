@@ -13,11 +13,6 @@ const redisClient = new RedisClient()
 // }
 // void test()
 
-const eventPrefix = 'event::'
-const eventsByDayPrefixWithoutDate = 'eventsByDay'
-const makeAEventsByDayPrefix = (yyyyMMddString: string): string =>
-  `${eventsByDayPrefixWithoutDate}::${yyyyMMddString}`
-
 let transfers = 0
 const transferAnEvent = async (event: MixpanelEvent): Promise<void> => {
   // save event to redis

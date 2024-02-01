@@ -8,8 +8,15 @@ import { logDeepObj } from './util'
 import { indexActiveNodeSets, indexSingleNodeReport } from './activeNodesIndexing'
 // import { type MixpanelEvent } from './mixpanel'
 
+/**
+ * This script reads events from this day and indexes active
+ * nodes (across 3 sliding windows day, week, month) for this day only.
+ * yyyy-MM-dd (ex. 2024-01-25)
+ */
+export const DAY_TO_INDEX_YYYY_MM_DD = '2024-01-25'
 console.log('Hello from TypeScript and Node.js!')
 console.log(`My timezone is: ${process.env.TZ}`)
+console.log(`Indexing for day: ${DAY_TO_INDEX_YYYY_MM_DD}`)
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 // const test = async () => {

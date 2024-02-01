@@ -1,17 +1,25 @@
 // Individual JSON objects prefixes
+export const eventPrefix = 'event::'
+export const eventsByDayPrefixWithoutDate = 'eventsByDay::'
 export const nodePrefix = 'node::'
 export const nodeServicePrefix = 'node-service::'
 export const userPrefix = 'user::'
+export const dailyActiveNodesByDay = 'dailyActiveNodesIndexByDay::'
+export const weeklyActiveNodesByDay = 'weeklyActiveNodesIndexByDay::'
+export const monthlyActiveNodesByDay = 'monthlyActiveNodesIndexByDay::'
 
-// Static JSON objects
-export const dailyActiveNodesByDay = 'dailyActiveNodesByDay'
-export const weeklyActiveNodesByDay = 'weeklyActiveNodesByDay'
-export const monthlyActiveNodesByDay = 'monthlyActiveNodesByDay'
+// Sets prefixes
+export const dailyActiveNodesSetByDay = 'dailyActiveNodesByDay::'
 
 // Sets
 export const dailyActiveNodesSet = 'dailyActiveNodes'
 export const weeklyActiveNodesSet = 'weeklyActiveNodes'
 export const monthlyActiveNodesSet = 'monthlyActiveNodes'
+
+export const makeAEventsByDayKey = (yyyyMMddString: string): string =>
+  `${eventsByDayPrefixWithoutDate}${yyyyMMddString}`
+export const makeAKeyByDay = (key: string, yyyyMMddString: string): string =>
+  `${key}${yyyyMMddString}`
 
 export interface NodeOrNodeServiceJson {
   nodeId: string

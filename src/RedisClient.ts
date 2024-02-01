@@ -64,7 +64,22 @@ class RedisClient {
     try {
       return await this.client.sadd(key, ...values)
     } catch (error) {
-      console.error(`Error setting key ${key}:`, error)
+      console.error(`Error adding to set key ${key}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * remove value from a set
+   * @param key set key
+   * @param values values to remove
+   * @returns number of values removed from the set
+   */
+  async removeFromSet(key: string, ...values: string[]): Promise<number | null> {
+    try {
+      return await this.client.srem(key, ...values)
+    } catch (error) {
+      console.error(`Error remove values from set key ${key}:`, error)
       throw error
     }
   }
@@ -102,7 +117,7 @@ export const impactDashRedisClient = new RedisClient({
   initRedisToken: impactDashRedisToken,
 })
 
-export const iterateSet = async (redis: RedisClient, setName: string, processElement: (element: string | number) => Promise<void>): Promise<void> => {
+export const iterateSet = async (redis: RedisClient, setName: string, processElement: (element: string | number, ...args: any) => Promise<void>): Promise<void> => {
   let cursor = 0
 
   do {
