@@ -1,14 +1,15 @@
-import { nodePrefix, type NodeJson, type UserJson, NodeServiceJson, nodeServicePrefix } from './redisTypes'
+import { nodePrefix, type NodeJson, type UserJson, type NodeServiceJson, nodeServicePrefix, userPrefix } from './redisTypes'
 // import { processData } from './../mixpanel'
 import { type MixpanelEvent } from '../mixpanel'
-import RedisClient, { eventsRedisClient, impactDashRedisClient } from './RedisClient'
+import type RedisClient from './RedisClient'
+import { eventsRedisClient, impactDashRedisClient, iterateSet } from './RedisClient'
 import { type DailyUserReport } from './mixpanel'
 import { logDeepObj } from './util'
+import { indexActiveNodeSets, indexSingleNodeReport } from './activeNodesIndexing'
 // import { type MixpanelEvent } from './mixpanel'
 
 console.log('Hello from TypeScript and Node.js!')
 console.log(`My timezone is: ${process.env.TZ}`)
-
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 // const test = async () => {
@@ -17,7 +18,6 @@ console.log(`My timezone is: ${process.env.TZ}`)
 // }
 // void test()
 
-const eventPrefix = 'event::'
 const eventsByDayPrefixWithoutDate = 'eventsByDay'
 const makeAEventsByDayPrefix = (yyyyMMddString: string): string =>
   `${eventsByDayPrefixWithoutDate}::${yyyyMMddString}`
@@ -36,23 +36,6 @@ const makeAEventsByDayPrefix = (yyyyMMddString: string): string =>
 //   transfers++
 //   console.log('transfers: ', transfers)
 // }
-
-const iterateSet = async (redis: RedisClient, setName: string, processElement: (element: string | number) => Promise<void>): Promise<void> => {
-  let cursor = 0
-
-  do {
-    // Use SSCAN to get elements from the set
-    const reply = await redis.sscan(setName, cursor, { count: 100 })
-    cursor = reply[0]
-    const elements = reply[1]
-
-    for (const element of elements) {
-      // console.log(element)
-      await processElement(element)
-    }
-  } while (cursor !== 0)
-  console.log('cursor reached (if 0, then less than 100 items in the set): ', cursor)
-}
 
 const processEvent = async (eventId: string | number): Promise<void> => {
   const eventIdStr = eventId as string
@@ -118,30 +101,34 @@ const processEvent = async (eventId: string | number): Promise<void> => {
           ...commonProperties,
         }
         await impactDashRedisClient.client.json.set(`${nodeServicePrefix}${serviceId}`, '$', nodeServiceJson)
-    }
+      }
 
-    // Upsave user
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    const nodeIds = Object.keys(properties.eventData)
-    const userJson: UserJson = {
-      lastReportedTimestamp: eventTime,
-      ...commonProperties,
-      ...properties.context,
-      nodeIds,
-    }
-    await impactDashRedisClient.client.json.set(`${nodePrefix}${userId}`, '$', userJson)
+      // Upsave user
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      const nodeIds = Object.keys(properties.eventData)
+      const userJson: UserJson = {
+        lastReportedTimestamp: eventTime,
+        ...commonProperties,
+        ...properties.context,
+        nodeIds,
+      }
+      await impactDashRedisClient.client.json.set(`${userPrefix}${userId}`, '$', userJson)
 
-    // indexing for active node data
+      // Upsave the node into active node sets
+      await indexSingleNodeReport(nodeJson)
+    } // end processing a single node in a DailyUserReport
+  } // end looping nodes in a DailyUserReport (for (const nodeId in properties.eventData))
+} // end iterate set
 
-  } // end for (const nodeId in properties.eventData)
-}
 // Main high-level algo
 // 1. Iterate new (daily) events
 // 2. Save/update node, service, and user data from the new events
 // 3. Iterate all the nodes and calc active node metadata
-// void processData(transferAnEvent)
-
-void iterateSet(impactDashRedisClient, makeAEventsByDayPrefix('2024-01-25'), processEvent)
+export const dailyIndexingRoutine = async (): Promise<void> => {
+  await iterateSet(impactDashRedisClient, makeAEventsByDayPrefix('2024-01-25'), processEvent)
+  // await indexActiveNodeSets()
+}
+void dailyIndexingRoutine()
 
 // ============ Troubleshooting ==============
 // const testConnection = async (): Promise<void> => {

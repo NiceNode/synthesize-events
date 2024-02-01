@@ -102,4 +102,22 @@ export const impactDashRedisClient = new RedisClient({
   initRedisToken: impactDashRedisToken,
 })
 
+export const iterateSet = async (redis: RedisClient, setName: string, processElement: (element: string | number) => Promise<void>): Promise<void> => {
+  let cursor = 0
+
+  do {
+    // Use SSCAN to get elements from the set
+    const reply = await redis.sscan(setName, cursor, { count: 100 })
+    cursor = reply[0]
+    const elements = reply[1]
+    console.log(`Iterating over ${elements.length} from ${setName} now...`)
+
+    for (const element of elements) {
+      // console.log(element)
+      await processElement(element)
+    }
+  } while (cursor !== 0)
+  console.log('cursor reached (if 0, then less than 100 items in the set): ', cursor)
+}
+
 export default RedisClient

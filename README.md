@@ -9,7 +9,8 @@ UPSTASH_REDIS_REST_URL=""
 UPSTASH_REDIS_REST_TOKEN=""
 ```
 
-Start a local redis server (`brew install redis && redis-server`) at `localhost:6379` and then run a http server to simulate upstash's http server. Github issue https://github.com/upstash/upstash-redis/issues/802
+Install `redis-stack-server` shown here https://redis.io/docs/install/install-stack/mac-os/ because we use the redis JSON module
+Start a local redis server (`brew install redis redis-stack && redis-stack-server`) at `localhost:6379` and then run a http server to simulate upstash's http server. Github issue https://github.com/upstash/upstash-redis/issues/802
 ```
 podman run \
     --rm -d -p 8080:80 --name redis-http \
