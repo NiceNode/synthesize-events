@@ -1,48 +1,24 @@
 import { nodePrefix, type NodeJson, type UserJson, type NodeServiceJson, nodeServicePrefix, userPrefix } from './redisTypes'
-// import { processData } from './../mixpanel'
-import { type MixpanelEvent } from '../mixpanel'
-import type RedisClient from './RedisClient'
 import { eventsRedisClient, impactDashRedisClient, iterateSet } from './RedisClient'
-import { type DailyUserReport } from './mixpanel'
+import { type MixpanelEvent, type DailyUserReport } from './mixpanel'
 import { logDeepObj } from './util'
 import { indexActiveNodeSets, indexSingleNodeReport } from './activeNodesIndexing'
-// import { type MixpanelEvent } from './mixpanel'
 
 /**
  * This script reads events from this day and indexes active
  * nodes (across 3 sliding windows day, week, month) for this day only.
  * yyyy-MM-dd (ex. 2024-01-25)
  */
-export const DAY_TO_INDEX_YYYY_MM_DD = '2024-01-25'
+export const DAY_TO_INDEX_YYYY_MM_DD = '2024-01-28'
+// '2024-01-31'
+
 console.log('Hello from TypeScript and Node.js!')
 console.log(`My timezone is: ${process.env.TZ}`)
 console.log(`Indexing for day: ${DAY_TO_INDEX_YYYY_MM_DD}`)
 
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-// const test = async () => {
-//   const output = await redisClient.get('numActiveNodes')
-//   console.log('numActiveNodes: ', output)
-// }
-// void test()
-
 const eventsByDayPrefixWithoutDate = 'eventsByDay'
 const makeAEventsByDayPrefix = (yyyyMMddString: string): string =>
   `${eventsByDayPrefixWithoutDate}::${yyyyMMddString}`
-
-// let transfers = 0
-// const transferAnEvent = async (event: MixpanelEvent): Promise<void> => {
-//   // save event to redis
-//   const redisEventId = `${eventPrefix}${event.properties.$insert_id}`
-//   await redisClient.set(redisEventId, JSON.stringify(event))
-
-//   // add event to day set
-//   const yyyyMMddString = format(event.properties.time * 1000, 'yyyy-MM-dd')
-//   const eventsByDayPrefix = makeAEventsByDayPrefix(yyyyMMddString)
-//   await redisClient.addToSet(eventsByDayPrefix, redisEventId)
-
-//   transfers++
-//   console.log('transfers: ', transfers)
-// }
 
 const processEvent = async (eventId: string | number): Promise<void> => {
   const eventIdStr = eventId as string
@@ -120,6 +96,7 @@ const processEvent = async (eventId: string | number): Promise<void> => {
         nodeIds,
       }
       await impactDashRedisClient.client.json.set(`${userPrefix}${userId}`, '$', userJson)
+      // todo: active users sets
 
       // Upsave the node into active node sets
       await indexSingleNodeReport(nodeJson)
@@ -127,13 +104,13 @@ const processEvent = async (eventId: string | number): Promise<void> => {
   } // end looping nodes in a DailyUserReport (for (const nodeId in properties.eventData))
 } // end iterate set
 
-// Main high-level algo
+// ===============  Main high-level algo  ===================
 // 1. Iterate new (daily) events
 // 2. Save/update node, service, and user data from the new events
 // 3. Iterate all the nodes and calc active node metadata
 export const dailyIndexingRoutine = async (): Promise<void> => {
-  await iterateSet(impactDashRedisClient, makeAEventsByDayPrefix('2024-01-25'), processEvent)
-  // await indexActiveNodeSets()
+  await iterateSet(eventsRedisClient, makeAEventsByDayPrefix(DAY_TO_INDEX_YYYY_MM_DD), processEvent)
+  await indexActiveNodeSets()
 }
 void dailyIndexingRoutine()
 

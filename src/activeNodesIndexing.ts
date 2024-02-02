@@ -11,9 +11,10 @@ const now = new Date()
 const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 const timestampStartOfDay = startOfDay.getTime()
 
-const dailyActiveThreshold = timestampStartOfDay - ONE_DAY_MILLISECONDS
-const weeklyActiveThreshold = timestampStartOfDay - ONE_WEEK_MILLISECONDS
-const monthlyActiveThreshold = timestampStartOfDay - ONE_MONTH_MILLISECONDS
+const dailyActiveThresholdMs = timestampStartOfDay - ONE_DAY_MILLISECONDS
+const weeklyActiveThresholdMs = timestampStartOfDay - ONE_WEEK_MILLISECONDS
+const monthlyActiveThresholdMs = timestampStartOfDay - ONE_MONTH_MILLISECONDS
+console.log('Active nodes indexing thresholds (daily, weekly, monthly): ', dailyActiveThresholdMs, weeklyActiveThresholdMs, monthlyActiveThresholdMs)
 
 /**
  * Used to keep track of historically active nodes by day
@@ -27,18 +28,19 @@ const dailyActiveNodesByDayKey = makeAKeyByDay(dailyActiveNodesSetByDay, DAY_TO_
  * @param nodeJson
  */
 export const indexSingleNodeReport = async (nodeJson: NodeJson): Promise<void> => {
+  console.log('indexSingleNodeReport nodeId: ', nodeJson.nodeId)
   // if node is active, save to active node sets
   if (nodeJson.lastRunningTimestampMs == null) {
     return
   }
-  if (nodeJson.lastRunningTimestampMs >= dailyActiveThreshold) {
+  if (nodeJson.lastRunningTimestampMs >= dailyActiveThresholdMs) {
     await impactDashRedisClient.addToSet(dailyActiveNodesSet, nodeJson.nodeId)
     await impactDashRedisClient.addToSet(dailyActiveNodesByDayKey, nodeJson.nodeId)
   }
-  if (nodeJson.lastRunningTimestampMs >= weeklyActiveThreshold) {
+  if (nodeJson.lastRunningTimestampMs >= weeklyActiveThresholdMs) {
     await impactDashRedisClient.addToSet(weeklyActiveNodesSet, nodeJson.nodeId)
   }
-  if (nodeJson.lastRunningTimestampMs >= monthlyActiveThreshold) {
+  if (nodeJson.lastRunningTimestampMs >= monthlyActiveThresholdMs) {
     await impactDashRedisClient.addToSet(monthlyActiveNodesSet, nodeJson.nodeId)
   }
 }
@@ -49,6 +51,8 @@ export interface activeNodesIndex {
   country: Record<string, number>
   [key: string]: unknown // redis req
 }
+
+// todo: special metrics for ethereum nodes like networks, client diversity, diskGBsUsed
 
 const dailyActiveNodesIndex: activeNodesIndex = {
   count: 0,
@@ -66,64 +70,64 @@ const monthlyActiveNodesIndex: activeNodesIndex = {
   country: {}
 }
 
-const processNode = async (
-  nodeIdStrOrNum: string | number,
+const processNode = (
   setKey: typeof dailyActiveNodesSet | typeof weeklyActiveNodesSet | typeof monthlyActiveNodesSet
-): Promise<void> => {
-  const nodeId = nodeIdStrOrNum as string
-  const node: NodeJson = await impactDashRedisClient.client.json.get(`${nodePrefix}${nodeId}`, '$')
+): (nodeIdStrOrNum: string | number) => Promise<void> => {
+  return async (nodeIdStrOrNum: string | number): Promise<void> => {
+    const nodeId = nodeIdStrOrNum as string
+    const node: NodeJson = await impactDashRedisClient.client.json.get(`${nodePrefix}${nodeId}`)
 
-  let indexToUpdate
-  if (setKey === dailyActiveNodesSet) {
-    if (node.lastRunningTimestampMs == null || node.lastRunningTimestampMs < dailyActiveThreshold) {
-      await impactDashRedisClient.removeFromSet(dailyActiveNodesSet, nodeId)
-    } else {
-      // node was detected running that day, update indexing data
-      indexToUpdate = dailyActiveNodesIndex
-    }
-  } else if (setKey === weeklyActiveNodesSet) {
-    if (node.lastRunningTimestampMs == null || node.lastRunningTimestampMs < weeklyActiveThreshold) {
-      await impactDashRedisClient.removeFromSet(weeklyActiveNodesSet, nodeId)
-    } else {
-      // node was detected running that week, update indexing data
-      indexToUpdate = weeklyActiveNodesIndex
-    }
-  } else if (setKey === monthlyActiveNodesSet) {
-    if (node.lastRunningTimestampMs == null || node.lastRunningTimestampMs < monthlyActiveThreshold) {
-      await impactDashRedisClient.removeFromSet(monthlyActiveNodesSet, nodeId)
-    } else {
-      // node was detected running that month, update indexing data
-      indexToUpdate = monthlyActiveNodesIndex
-    }
-  }
+    // console.log(`Indexing. processNode ${nodeId}, setKey ${setKey}, node ${JSON.stringify(node)}`)
 
-  // if undefined, setKey is not an expected value
-  if (indexToUpdate !== undefined) {
-    indexToUpdate.count++
-    if (indexToUpdate.specId[node.specId] === undefined) {
-      indexToUpdate.specId[node.specId] = 0
-    } else {
-      indexToUpdate.specId[node.specId]++
+    let indexToUpdate
+    if (setKey === dailyActiveNodesSet) {
+      if (node.lastRunningTimestampMs == null || node.lastRunningTimestampMs < dailyActiveThresholdMs) {
+        console.log(`Removing ${nodeId} from daily set`)
+        await impactDashRedisClient.removeFromSet(dailyActiveNodesSet, nodeId)
+      } else {
+        // node was detected running that day, update indexing data
+        indexToUpdate = dailyActiveNodesIndex
+      }
+    } else if (setKey === weeklyActiveNodesSet) {
+      if (node.lastRunningTimestampMs == null || node.lastRunningTimestampMs < weeklyActiveThresholdMs) {
+        console.log(`Removing ${nodeId} from weekly set`)
+        await impactDashRedisClient.removeFromSet(weeklyActiveNodesSet, nodeId)
+      } else {
+        // node was detected running that week, update indexing data
+        indexToUpdate = weeklyActiveNodesIndex
+      }
+    } else if (setKey === monthlyActiveNodesSet) {
+      if (node.lastRunningTimestampMs == null || node.lastRunningTimestampMs < monthlyActiveThresholdMs) {
+        console.log(`Removing ${nodeId} from monthly set...${node.lastRunningTimestampMs} and ${monthlyActiveThresholdMs}`)
+        await impactDashRedisClient.removeFromSet(monthlyActiveNodesSet, nodeId)
+      } else {
+        // node was detected running that month, update indexing data
+        indexToUpdate = monthlyActiveNodesIndex
+      }
     }
-    if (indexToUpdate.country[node.country] === undefined) {
-      indexToUpdate.country[node.country] = 0
+
+    // if undefined, setKey is not an expected value
+    if (indexToUpdate !== undefined) {
+      console.log(`Indexing ${nodeId} ${JSON.stringify(node)} to ${JSON.stringify(indexToUpdate)} set`)
+      indexToUpdate.count++
+      if (indexToUpdate.specId[node.specId] === undefined) {
+        indexToUpdate.specId[node.specId] = 1
+      } else {
+        indexToUpdate.specId[node.specId]++
+      }
+      if (indexToUpdate.country[node.country] === undefined) {
+        indexToUpdate.country[node.country] = 1
+      } else {
+        indexToUpdate.country[node.country]++
+      }
     } else {
-      indexToUpdate.country[node.country]++
+      console.error(`Indexing ${nodeId} indexToUpdate is undefined`)
     }
   }
 }
 
-// country, specId
-export const indexActiveNodeSets = async (): Promise<void> => {
-  // clean active sets - iterate daily, weekly, monthly sets
-  await iterateSet(impactDashRedisClient, monthlyActiveNodesSet, processNode)
-
-  // save indexed data
-  await impactDashRedisClient.client.json.set(makeAKeyByDay(dailyActiveNodesByDay, DAY_TO_INDEX_YYYY_MM_DD), '$', dailyActiveNodesIndex)
-  await impactDashRedisClient.client.json.set(makeAKeyByDay(weeklyActiveNodesByDay, DAY_TO_INDEX_YYYY_MM_DD), '$', weeklyActiveNodesIndex)
-  await impactDashRedisClient.client.json.set(makeAKeyByDay(monthlyActiveNodesByDay, DAY_TO_INDEX_YYYY_MM_DD), '$', monthlyActiveNodesIndex)
-
-  // for each node
+/**
+ *   // for each node
   //  if not active "enough", remove from set
   //  else
   //      bump count for set
@@ -132,6 +136,17 @@ export const indexActiveNodeSets = async (): Promise<void> => {
   // once done with all nodes
   // store count of each set byDay
   // store count of each region, type, etc. byDay
+ */
+export const indexActiveNodeSets = async (): Promise<void> => {
+  // clean active sets - iterate daily, weekly, monthly sets
+  await iterateSet(impactDashRedisClient, monthlyActiveNodesSet, processNode(monthlyActiveNodesSet))
+  await iterateSet(impactDashRedisClient, weeklyActiveNodesSet, processNode(weeklyActiveNodesSet))
+  await iterateSet(impactDashRedisClient, dailyActiveNodesSet, processNode(dailyActiveNodesSet))
+
+  // save indexed data
+  await impactDashRedisClient.client.json.set(makeAKeyByDay(dailyActiveNodesByDay, DAY_TO_INDEX_YYYY_MM_DD), '$', dailyActiveNodesIndex)
+  await impactDashRedisClient.client.json.set(makeAKeyByDay(weeklyActiveNodesByDay, DAY_TO_INDEX_YYYY_MM_DD), '$', weeklyActiveNodesIndex)
+  await impactDashRedisClient.client.json.set(makeAKeyByDay(monthlyActiveNodesByDay, DAY_TO_INDEX_YYYY_MM_DD), '$', monthlyActiveNodesIndex)
 }
 
 // todo: retro fill in active nodes

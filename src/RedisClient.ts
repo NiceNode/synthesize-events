@@ -17,7 +17,7 @@ class RedisClient {
     const redisPassword = initRedisToken ?? process.env.UPSTASH_REDIS_REST_TOKEN
 
     if (redisUrl === undefined || redisPassword === undefined) {
-      throw new Error('wahhh')
+      throw new Error('initRedisUrl or initRedisToken is undefined')
     }
 
     this.client = new Redis({
@@ -117,7 +117,7 @@ export const impactDashRedisClient = new RedisClient({
   initRedisToken: impactDashRedisToken,
 })
 
-export const iterateSet = async (redis: RedisClient, setName: string, processElement: (element: string | number, ...args: any) => Promise<void>): Promise<void> => {
+export const iterateSet = async (redis: RedisClient, setName: string, processElement: (element: string | number) => Promise<void>): Promise<void> => {
   let cursor = 0
 
   do {
