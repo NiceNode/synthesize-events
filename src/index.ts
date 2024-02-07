@@ -1,20 +1,52 @@
 import { nodePrefix, type NodeJson, type UserJson, type NodeServiceJson, nodeServicePrefix, userPrefix } from './redisTypes'
 import { eventsRedisClient, impactDashRedisClient, iterateSet } from './RedisClient'
 import { type MixpanelEvent, type DailyUserReport } from './mixpanel'
-import { logDeepObj } from './util'
-import { indexActiveNodeSets, indexSingleNodeReport } from './activeNodesIndexing'
+import { convertYyyyMmDdToUTCDate, dateToYyyyMmDd, getTodayYyyyMmDd, getYesterdayYyyyMmDd, logDeepObj } from './util'
+import { copyPreviousWeekMonthActiveNodes, indexActiveNodeSets, indexSingleNodeReport, initializeDateConstants } from './activeNodesIndexing'
+// const argv = require('minimist')(process.argv.slice(2));
+import minimist from 'minimist'
 
+// ================ Index dates setup ====================
+/**
+ * Today in UTC. Regardless of day which is being indexed.
+ * Ex. '2024-01-28'
+ */
+export const TODAY_YYYY_MM_DD = getTodayYyyyMmDd()
+
+/**
+ * Yesterday in UTC. Regardless of day which is being indexed.
+ * Ex. '2024-01-27'
+ */
+export const YESTERDAY_YYYY_MM_DD = getYesterdayYyyyMmDd()
+
+/**
+ * -day "yyyy-MM-dd" optional for backfil
+ */
+const argv = minimist(process.argv.slice(2))
+console.log('minimist(argv) = ', argv)
+/**
+ * Yesterday (YESTERDAY_YYYY_MM_DD) is the default day to index!
+ * Today does not make sense because today is still in progress :)
+ */
+export let dayToIndexYyyyMmDd = YESTERDAY_YYYY_MM_DD
+if (typeof argv.day === 'string') {
+  dayToIndexYyyyMmDd = argv.day
+}
+export const dayToIndexDate = convertYyyyMmDdToUTCDate(dayToIndexYyyyMmDd)
+export const dayBeforeDayToIndexDate = new Date(dayToIndexDate.getTime())
+dayBeforeDayToIndexDate.setDate(dayToIndexDate.getDate() - 1)
+export const dayBeforeDayToIndexYyyyMmDd = dateToYyyyMmDd(dayBeforeDayToIndexDate)
 /**
  * This script reads events from this day and indexes active
  * nodes (across 3 sliding windows day, week, month) for this day only.
  * yyyy-MM-dd (ex. 2024-01-25)
  */
-export const DAY_TO_INDEX_YYYY_MM_DD = '2024-01-28'
 // '2024-01-31'
+// --------------- End Index dates setup ---------------
 
 console.log('Hello from TypeScript and Node.js!')
 console.log(`My timezone is: ${process.env.TZ}`)
-console.log(`Indexing for day: ${DAY_TO_INDEX_YYYY_MM_DD}`)
+console.log(`Indexing for day: ${dayToIndexYyyyMmDd} and today is: ${TODAY_YYYY_MM_DD}. Day before index day is: ${dayBeforeDayToIndexYyyyMmDd}`)
 
 const eventsByDayPrefixWithoutDate = 'eventsByDay'
 const makeAEventsByDayPrefix = (yyyyMMddString: string): string =>
@@ -65,6 +97,7 @@ const processEvent = async (eventId: string | number): Promise<void> => {
         lastStartedTimestampMs: node.lastStartedTimestampMs,
         ...commonProperties
       }
+      // todo: add check to only update if this eventTime > savedNodeJson.lastReportedTimestamp
       await impactDashRedisClient.client.json.set(`${nodePrefix}${nodeId}`, '$', nodeJson)
       // Upsave each service of the node
       for (const serviceId in node.nodes) {
@@ -83,6 +116,7 @@ const processEvent = async (eventId: string | number): Promise<void> => {
           lastStartedTimestampMs: service.lastStartedTimestampMs,
           ...commonProperties,
         }
+        // todo: add check to only update if this eventTime > savedNodeJson.lastReportedTimestamp
         await impactDashRedisClient.client.json.set(`${nodeServicePrefix}${serviceId}`, '$', nodeServiceJson)
       }
 
@@ -95,6 +129,7 @@ const processEvent = async (eventId: string | number): Promise<void> => {
         ...properties.context,
         nodeIds,
       }
+      // todo: add check to only update if this eventTime > savedNodeJson.lastReportedTimestamp
       await impactDashRedisClient.client.json.set(`${userPrefix}${userId}`, '$', userJson)
       // todo: active users sets
 
@@ -109,7 +144,9 @@ const processEvent = async (eventId: string | number): Promise<void> => {
 // 2. Save/update node, service, and user data from the new events
 // 3. Iterate all the nodes and calc active node metadata
 export const dailyIndexingRoutine = async (): Promise<void> => {
-  await iterateSet(eventsRedisClient, makeAEventsByDayPrefix(DAY_TO_INDEX_YYYY_MM_DD), processEvent)
+  initializeDateConstants(dayBeforeDayToIndexYyyyMmDd, dayToIndexDate, dayToIndexYyyyMmDd)
+  await copyPreviousWeekMonthActiveNodes()
+  await iterateSet(eventsRedisClient, makeAEventsByDayPrefix(dayToIndexYyyyMmDd), processEvent)
   await indexActiveNodeSets()
 }
 void dailyIndexingRoutine()

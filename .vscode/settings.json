@@ -1,4 +1,11 @@
 {
   "editor.formatOnSave": true,
-  "prettier.enable": false
+  "prettier.enable": true,
+  "prettier.configPath": ".prettierrc",
+  "prettier.singleQuote": true,
+  "prettier.printWidth": 100,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "prettier.documentSelectors": [
+    "**/*.{ts,js}"
+  ]
 }

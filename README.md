@@ -1,6 +1,6 @@
 # synthesize-events
 
-Synthesizes, processes, calculates various statistics about events that have taken place in the recent past. It reads event data from redis and then stores the synthesized data in other redis keys.
+Synthesizes, processes, calculates various statistics about events that have taken place in the recent past. It reads event data from redis and then stores the synthesized data in other redis keys. Every day or date is UTC timezone.
 
 create a .env file or set env vars:
 
@@ -22,8 +22,11 @@ podman run \
 
 Manually set redis values with `redis-cli` and `set <key> <value>` command
 
-With node and npm installed, run
+With node and npm installed, to index yesterday UTC time, run
 `npm install` then `npm run watchIndex` (careful this will re-run on any file save)
+
+Run this on a specific day with `npm run watchIndex -- --day '2024-01-30'` 
+NOTE!: Indexing for a specific day, relies on the previous day's index. So if you want accurate "monthly active nodes" counts and indexing, then index a months worth of days first before doing a specific day.
 
 # Redis keys
 
@@ -31,18 +34,6 @@ Event data read from  `event::<event-id>` and `eventsByDay::<yyyy-mm-dd>` is syn
 
 ## Impact Dashboard keys
 The types can be found in `src/redisTypes.ts`
-### JSON
-`node::<node_id>`
-`service::<service_id>`
-`user::<user_id>`
-`activeUsersByDay`
-`activeNodesByDay`
-
-### Sets
-`activeUsers`
-`activeNodes`
-
-
 
 # Troubleshooting
 
