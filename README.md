@@ -54,3 +54,7 @@ To run it once a day at a specific time try something like:
 `which npm` to determine npm path (path isn't always setup with crontab)
 
 4:00pm Pacific time
+
+# Run for a previous day
+
+`npm run runProd -- --day '2024-02-23'`
