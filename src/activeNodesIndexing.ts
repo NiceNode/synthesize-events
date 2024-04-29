@@ -1,6 +1,7 @@
 import {
   type NodeJson, nodePrefix, makeAKeyByDay, dailyActiveNodesSetByDay,
-  dailyActiveNodesByDay, weeklyActiveNodesByDay, monthlyActiveNodesByDay, weeklyActiveNodesSetByDay, monthlyActiveNodesSetByDay
+  dailyActiveNodesByDay, weeklyActiveNodesByDay, monthlyActiveNodesByDay, weeklyActiveNodesSetByDay, monthlyActiveNodesSetByDay,
+  nodeServicePrefix
 } from './redisTypes'
 import { impactDashRedisClient, iterateSet } from './RedisClient'
 
@@ -81,9 +82,18 @@ export const indexSingleNodeReport = async (nodeJson: NodeJson): Promise<void> =
   }
 }
 
+export interface NodeOrServiceSpecificIndex {
+  count: number,
+  country: Record<string, number>,
+  networks: Record<string, number>,
+}
+export interface NodeSpecificIndex extends NodeOrServiceSpecificIndex {
+  services: Record<string, NodeOrServiceSpecificIndex>
+}
 export interface activeNodesIndex {
   count: number
-  specId: Record<string, number>
+  // specId: Record<string, number>
+  specId: Record<string, NodeSpecificIndex>
   country: Record<string, number>
   [key: string]: unknown // redis req
 }
@@ -154,18 +164,74 @@ const processNode = (
     }
 
     // if undefined, then the node was removed from the active set and should not be counted in the index
+    // todo: turn specId[<spec-Id>] from count to object
+    // {"lastReportedTimestamp":1713596400,"serviceIds":["11d4ef39-2f18-40b7-bf5c-6c50b79aa6f9","334b39d6-27d7-4e09-b11c-0e1388240067"],"specId":"ethereum","country":"CA","lastStartedTimestampMs":1713230898615,"region":"British Columbia","network":"Holesky","specVersion":"1.0.0","userId":"7b7fb34e-d840-467e-afb5-35f3028167e2","city":"Kelowna","lastRunningTimestampMs":1713230930219,"nodeId":"e78d8199-60be-4d18-9dad-a2e2fe6625fd","status":"running"}
     if (indexToUpdate !== undefined) {
       console.log(`Indexing ${nodeId} ${JSON.stringify(node)} to ${JSON.stringify(indexToUpdate)} set`)
+      ///// All nodes level indexes
       indexToUpdate.count++
-      if (indexToUpdate.specId[node.specId] === undefined) {
-        indexToUpdate.specId[node.specId] = 1
-      } else {
-        indexToUpdate.specId[node.specId]++
-      }
       if (indexToUpdate.country[node.country] === undefined) {
-        indexToUpdate.country[node.country] = 1
-      } else {
-        indexToUpdate.country[node.country]++
+        indexToUpdate.country[node.country] = 0
+      }
+      indexToUpdate.country[node.country]++
+
+      ///// Specific Node level indexes
+      if (indexToUpdate.specId[node.specId] === undefined) {
+        indexToUpdate.specId[node.specId] = { count: 0, services: {}, country: {}, networks: {} }
+        if(node.country) {
+          indexToUpdate.specId[node.specId].country[node.country] = 0
+        }
+        if(node.network) {
+          indexToUpdate.specId[node.specId].networks[node.network] = 0
+        }
+      }
+      indexToUpdate.specId[node.specId].count++
+      if(node.country) {
+        if(indexToUpdate.specId[node.specId].country[node.country] === undefined) {
+          indexToUpdate.specId[node.specId].country[node.country] = 0
+        }
+        indexToUpdate.specId[node.specId].country[node.country]++
+      }
+      if(node.network) {
+        if(indexToUpdate.specId[node.specId].networks[node.network] === undefined) {
+          indexToUpdate.specId[node.specId].networks[node.network] = 0
+        }
+        indexToUpdate.specId[node.specId].networks[node.network]++
+      }
+
+      ///// Node.service level indexes
+      const servicesIndex  = indexToUpdate.specId[node.specId].services;
+      // for (const serviceId of node.serviceIds) {
+      for (let i=0; i < node.serviceIds.length; i++) {
+        const serviceId = node.serviceIds[i]
+        const service = await impactDashRedisClient.client.json.get(`${nodeServicePrefix}${serviceId}`)
+        if(service === null) {
+          throw new Error(`Indexing ${nodeId} service ${serviceId} not found in redis`)
+        }
+        const serviceSpecId = service.specId
+        if (servicesIndex[serviceSpecId] === undefined) {
+          servicesIndex[serviceSpecId] = { count: 0, country: {}, networks: {} }
+          if(service.country) {
+            servicesIndex[serviceSpecId].country[service.country] = 0
+          }
+          if(service.network) {
+            servicesIndex[serviceSpecId].networks[service.network] = 0
+          }
+        }
+
+        servicesIndex[serviceSpecId].count++
+        if(service.country) {
+          if(servicesIndex[serviceSpecId].country[service.country] === undefined) {
+            servicesIndex[serviceSpecId].country[service.country] = 0
+          }
+          servicesIndex[serviceSpecId].country[service.country]++
+        }
+        if(service.network) {
+          if(servicesIndex[serviceSpecId].networks[service.network] === undefined) {
+            servicesIndex[serviceSpecId].networks[service.network] = 0
+          }
+          servicesIndex[serviceSpecId].networks[service.network]++
+        }
       }
     } else {
       console.error(`Indexing ${nodeId} indexToUpdate is undefined`)
