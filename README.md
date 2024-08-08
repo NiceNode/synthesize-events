@@ -51,6 +51,13 @@ To run it once a day at a specific time try something like:
 04 16 * * * cd /home/johns/dev/synthesize-events && /usr/bin/npm run runProd >> /home/johns/cronoutput-synthesize.txt 2>&1
 ```
 
+In conjuction with transfer-events and using UTC timezone:
+```
+TZ=UTC
+03 0  * * * cd /home/johns/dev/transfer-events && /usr/bin/npm run runProd >> /home/johns/cronoutput.txt 2>&1
+06 0 * * * cd /home/johns/dev/synthesize-events && /usr/bin/npm run runProd >> /home/johns/cronoutput-synthesize.txt 2>&1
+```
+
 `which npm` to determine npm path (path isn't always setup with crontab)
 
 4:00pm Pacific time
